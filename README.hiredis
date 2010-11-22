@@ -1,0 +1,55 @@
+:: ccredis ::
+
+ccredis is a C++ wrapper class on hiredis using STL (string, vector, map) and BOOST (scoped pointers, tuples)
+
+INSTALL:
+	- Download hiredis v0.0.1 from github and extract tar file - do not call 'make'!
+	- Download ccredis from github, extract the tar file an copy all files into "hiredis dir" 
+	  (the .cpp files are patched with type cast to compile correctly for g++)
+	- Call make -f makeLib to build libhiredis.so
+	- Commands in ccredis are the same like used in redis (set, get, expire, exists etc.). Not yet all commands
+	  are implemented, for these commands use CCRedis::native
+	
+HOWTO:
+	You have to include the ccredis.h to your source file and link "libhiredis.so"	
+
+
+EXAMPLES:
+
+	try
+	{
+		CCRedis _rd; 	//-- creat an instance of CCRedis  -- CCRedis( const std::string strRedisHost = "127.0.0.1", int dwRedisPort = 6379 )
+		
+		_rd.auth( "passwd" ); //-- authent. if necessary
+		
+		_rd.set( "name:1", "Smith" );	//-- set value
+		cout << Redis_SPRepl(  _rd.get( "name" ) )->getStr() << endl;	//-- output value
+		std::string _strName = Redis_SPRepl(  _rd.get( "name:1" ) )->getStr(); //-- assign value
+		
+	//-- keys ...........................
+		Redis_SPRepl _rn( __rd.keys( "name:*" ) );
+        Redis_citStr    __iB, __iE;
+        for( tie( __iB, __iE ) = _rn->getArrIt(); __iB != __iE; ++__iB )
+            cout << *__iB << endl;
+
+		
+	//-- hashes .........................
+		Redis_Hash _hash;
+        _hash["id"] = "3";
+        _hash["name"] = "Baur";
+        _hash["fname"] = "Jack";
+        
+        _rd.hmset( "agent", _hash );
+        
+        Redis_mHash _hRes = Redis_SPRepl( _rd.hgetall( "agent" ) )->getMap();
+        cout << "Name: " << _hMRes["name"] << " Id: " << _MRes["id"] << endl;
+        int _dwId = lexical_cast<int>( _hMRes["id"] );
+	
+	
+	}
+	catch( runtime_error( &rtErr ) )
+    {
+        cerr << "Runtime-Error: " << rtErr.what() <<  endl;
+        return 1;
+    }
+	
