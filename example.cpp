@@ -54,15 +54,17 @@ int main()
 	{
 		CCRedis _rd; 	//-- creat an instance of CCRedis  -- CCRedis( const std::string strRedisHost = "127.0.0.1", int dwRedisPort = 6379 )
 		
-		//_rd.auth( "passwd" ); //-- authent. if necessary
 		_rd.connect();
-		_rd.set( "name:1", "Smith" );	//-- set value
+  		//_rd.auth( "password" );
+  		//_rd.select( 1 );
+  		
+  		_rd.set( "name:1", "Smith" );	//-- set value
 		_rd.set( "name:2", "Miller" );	
-		cout << Redis_SPRepl(  _rd.get( "name:1" ) )->getStr() << endl;	//-- output value
-		std::string _strName = Redis_SPRepl(  _rd.get( "name:1" ) )->getStr(); //-- assign value
+		cout << _rd.get( "name:1" )->getStr() << endl;	//-- output value
+		string _strName = _rd.get( "name:1" )->getStr(); //-- assign value
 		
 	//-- keys ...........................
-		Redis_SPRepl _rn( _rd.keys( "name:*" ) );
+		Redis_SHRepl _rn = _rd.keys( "name:*" );
         Redis_citStr    __iB, __iE;
         cout << "Keys: \n";
         for( tie( __iB, __iE ) = _rn->getArrIt(); __iB != __iE; ++__iB )
@@ -76,16 +78,16 @@ int main()
 		_rd.sadd( "fruit", "apple" );
 		_rd.sadd( "fruit", "orange" );
 		
-		Redis_StrVec _vFruits = Redis_SPRepl(  _rd.smembers( "fruit" ) )->getArr();
+		Redis_StrVec _vFruits = _rd.smembers( "fruit" )->getArr();
 		cout << "fruits: \n";
 		for( Redis_itStr __it = _vFruits.begin(); __it != _vFruits.end(); ++__it )
 			cout << "\t" << *__it << endl;
 	  //-- or
-		Redis_SPRepl _rf( _rd.smembers( "fruit" ) );
+		Redis_SHRepl _rf = _rd.smembers( "fruit" );
 		Redis_citStr    __iBF, __iEF;
 		tie( __iBF, __iEF ) = _rf->getArrIt();
 		cout << "\nor: \n";
-		for_each( __iBF, __iEF, print );
+		//for_each( __iBF, __iEF, print );
 	
 	//-- hashes .........................
 		Redis_mHash _hash;
@@ -96,14 +98,19 @@ int main()
         
         Redis_vHash _tpl = tuple_list_of( "id", lexical_cast<string>( "1" ) )( "name", "Smith" )( "fname", "Bill" );
         _rd.hmset( "victim", _tpl );
-        Redis_mHash _hMRes = Redis_SPRepl( _rd.hgetall( "agent" ) )->getMap();
-        cout << "\nHash: \nName: " << _hMRes["name"] << " Id: " << _hMRes["id"] << endl;
+        
+        Redis_SHRepl _rep = _rd.hgetall( "agent" );
+        Redis_mHash &_hMRes = _rep->getMap();
+        //Redis_mHash _hMRes = _rd.hgetall( "agent" )->getMap(); -- possible but not as efficient because a copy is made
+        
+        cout << "\nHash: \nName: " << _hMRes["name"] << ", first name: " << _hMRes["fname"] << ", Id: " << _hMRes["id"] << endl;
+       
         int _dwId = lexical_cast<int>( _hMRes["id"] );
         cout << "The id: " << _dwId << endl;
         
     //-- native ......................
-    	cout << "\nnative: \nnew index: " << Redis_SPRepl( _rd.native( "incr", "index" ) )->getInt() << endl;
-    	Redis_SPRepl( _rd.native( "set", "name:20", "Tester" ) );
+    	cout << "\nnative: \nnew index: " << _rd.native( "incr", "index" )->getInt() << endl;
+    	_rd.native( "set", "name:20", "Tester" );
      
 	
 	

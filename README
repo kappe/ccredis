@@ -1,6 +1,6 @@
 :: ccredis ::
 
-ccredis is a C++ wrapper class on hiredis using STL (string, vector, map) and BOOST (scoped pointers, tuples)
+ccredis is a C++ redis client - a wrapper class on hiredis using STL (string, vector, map) and BOOST (scoped pointers, tuples)
 
 CHANGES made in hiredis
 	- All .c files are renamed to .cpp
@@ -10,6 +10,7 @@ INSTALL:
 	- Download and extract ccredis
 	- Call 'make' to build libhiredis.so. The libraray is built in the current directory you have to move it later
 	  for example to /usr/local/lib
+	- Copy anet.h, hiredis.h and sds.h to /usr/local/include
 	- To run 'example' you have to build it (see example.cpp) and set $LD_LIBRARY_PATH
 	
 HOWTO:

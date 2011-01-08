@@ -38,6 +38,7 @@
 #include <boost/tuple/tuple.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/scoped_ptr.hpp>
+#include <boost/shared_ptr.hpp>
 #include <boost/variant.hpp>
 
 #include "anet.h"
@@ -96,7 +97,7 @@ public:
 				
 	public:
 		const eREPLYTYPE  	replyType() const { return m_eReplyType; }
-		
+	
 		const long long		getInt() const {
 			if( m_eReplyType != INTEGER )
 				throw( std::runtime_error( "CCRedisReply-Exception: wrong type (not an INTEGER)" ) );
@@ -117,7 +118,7 @@ public:
 				throw( std::runtime_error( "CCRedisReply-Exception: wrong type" ) );
 			return( boost::make_tuple( m_vReply.begin(), m_vReply.end() ) );
 		};	
-		const T_mMap& getMap() {
+		T_mMap& getMap() {
 			if( m_eReplyType != ARRAY && m_eReplyType != NIL )
 				throw( std::runtime_error( "CCRedisReply-Exception: wrong type" ) );
 			register int __cnt( m_vReply.size() );
@@ -149,7 +150,6 @@ public:
 			if( m_Reply )
 			{
 				freeReplyObject( m_Reply );
-				//cout << "DELETE" << endl;
 				m_Reply = NULL;
 			}
 		};
@@ -185,7 +185,8 @@ private:
 
 protected:
 	typedef int									RH;
-	typedef boost::scoped_ptr<CCRedisReply>		SP_RedRpl;
+	typedef boost::scoped_ptr<CCRedisReply>		SC_RedRpl;
+	typedef boost::shared_ptr<CCRedisReply> 	SH_RedRpl;
 			
 protected:
 	RH				m_rh;
@@ -204,7 +205,7 @@ private:
 			
 			if( read( m_rh, &__c, 1 ) == -1 )
 				throw( std::runtime_error( "Redis-Protocol-Exception: channel" ) );
-//cout << __c << "(" << __i << ")";
+
 			if( __i == 0  ) {
 				switch( __c ) {
 				case '+':	__type = STRING; __dwRet = 1; break;
@@ -223,7 +224,7 @@ private:
 				__strNumBuff.append( 1, __c );	
 			}
 		}
-//cout << endl;
+
 		if( __type == STRING )
 			return __dwRet;
 		else if( __type == INTEGER )
@@ -237,33 +238,33 @@ private:
 	
 
 public:
-	CCRedisReply* get( std::string strKey ) {
+	SH_RedRpl get( std::string strKey ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey;
-		return new CCRedisReply( redisCommand( m_rh, __strCmd.c_str()  ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) );
 	};
-	CCRedisReply* keys( std::string strKey ) {
+	SH_RedRpl keys( std::string strKey ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey;
-		return new CCRedisReply( redisCommand( m_rh, __strCmd.c_str()  ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) );
 	};
-	CCRedisReply* mget( const T_vString &vKeys ) {
+	SH_RedRpl mget( const T_vString &vKeys ) {
 		std::ostringstream __osCmd;
 		__osCmd << __FUNCTION__;
 		for_each( vKeys.begin(), vKeys.end(), F_Serialize<std::string>( __osCmd ) );
-		return new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str()  ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) );
 	};  
 	
   //--
 	bool set( std::string strKey, std::string strVal ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
-		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->replyType() != ERROR ? true : false );
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->replyType() != ERROR ? true : false );
 	};
 	int setnx( std::string strKey, std::string strVal ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
-		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );
 	};
-	CCRedisReply* getset( std::string strKey, std::string strVal ) {
+	SH_RedRpl getset( std::string strKey, std::string strVal ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
-		return new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length() ) ) );
 	};
   //--  
   	int mset( const T_mMap &m, const std::string strCmd = "MSET" ) {
@@ -273,7 +274,6 @@ public:
 		__osCmd << "\r\n";
 		anetWrite( m_rh, const_cast<char*>( __osCmd.str().c_str() ), __osCmd.str().length() );
 		return( protReply() );
-		//return( SP_RedRpl( new CCRedisReply( redisGetReply( m_rh ) ) )->replyType() != ERROR ? true : false );
 	};
 	int mset( const T_vTupRedis &vTup, const std::string strCmd = "MSET" ) {
 		std::ostringstream 	__osCmd;
@@ -286,42 +286,57 @@ public:
   //-- SETS
   	int sadd( std::string strKey, std::string strVal ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
-		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );
 	};
-  	CCRedisReply* smembers( std::string strKey ) {
+  	SH_RedRpl smembers( std::string strKey ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey;
-		return new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) );
 	};  
+	bool sismember( std::string strKey, std::string strVal )
+	{
+		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
+		return( static_cast<bool>( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() ) );	
+	};
+	bool srem( std::string strKey, std::string strVal )
+	{
+		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
+		return( static_cast<bool>( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() ) );	
+	};
 	int	scard( std::string strKey ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey;
-		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, strKey.c_str() ) ) )->getInt() );
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, strKey.c_str() ) ) )->getInt() );
 	};
   //-- LIST
   	int rpush( std::string strKey, std::string strVal ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
-		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );	
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );	
 	};	
 	int lpush( std::string strKey, std::string strVal ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " %b" );
-		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );	
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );	
 	};	
 	int llen( std::string strKey ) {
 		std::string __strCmd = __FUNCTION__;
-		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) )->getInt() );	
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) )->getInt() );	
 	};	
-	CCRedisReply* lrange( std::string strKey, int dwBegin = 0, int dwEnd = -1 ) {
+	SH_RedRpl lrange( std::string strKey, int dwBegin = 0, int dwEnd = -1 ) {
 		std::ostringstream 	__osCmd;
 		__osCmd << __FUNCTION__ << " " << strKey << " " << dwBegin << " " << dwEnd;
-		return new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) );
 	};  
   //-- HASH
-	CCRedisReply* hget( std::string strKey, std::string strField ) {
+	SH_RedRpl hget( std::string strKey, std::string strField ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey + std::string( " " ) + strField;
-		return new CCRedisReply( redisCommand( m_rh, __strCmd.c_str()  ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) );
 	};
-	CCRedisReply* hgetall( std::string strKey ) {
+	int hset( std::string strKey, std::string strField, std::string strVal )
+	{
+		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey +  std::string( " "  ) + strField + std::string( " %b" );
+		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str(), strVal.c_str(), strVal.length()  ) ) )->getInt() );	
+	};
+	SH_RedRpl hgetall( std::string strKey ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " ) + strKey;
-		return new CCRedisReply( redisCommand( m_rh, __strCmd.c_str()  ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) );
 	};
 	bool hmset( std::string strKey, const T_mMap &m ) {
 		std::ostringstream 	__osCmd;
@@ -341,44 +356,54 @@ public:
 	};
 	
   //--
-  	CCRedisReply* native( std::string strCmd, std::string strKey ) {
+  	SH_RedRpl native( std::string strCmd, std::string strKey ) {
 		std::ostringstream 	__osCmd;
 		__osCmd << strCmd << " " << strKey;
-		return new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str(), "" ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str(), "" ) ) );
 	};
-	CCRedisReply* native( std::string strCmd, std::string strKey, std::string strValue ) {
+	SH_RedRpl native( std::string strCmd, std::string strKey, std::string strValue ) {
 		std::ostringstream 	__osCmd;
 		__osCmd << strCmd << " " << strKey << " %b";
-		return new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str(), strValue.c_str(), strValue.length() ) );
+		return SH_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str(), strValue.c_str(), strValue.length() ) ) );
 	};
   //-- 
   	bool expire( const std::string strKey, int dwSeconds ) {
   		std::ostringstream 	__osCmd;
   		__osCmd << __FUNCTION__ << " " << strKey << " " << dwSeconds;
-  		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->replyType() != ERROR ? true : false );
+  		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->replyType() != ERROR ? true : false );
   	};	
   	bool exists( const std::string strKey ) {
   		std::ostringstream 	__osCmd;
   		__osCmd << __FUNCTION__ << " " << strKey;
-  		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->getInt() == 1 ? true : false );
+  		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->getInt() == 1 ? true : false );
   	};	
   	int del( const std::string strKey ) {
   		std::ostringstream 	__osCmd;
   		__osCmd << __FUNCTION__ << " " << strKey;
-  		return SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->getInt();
+  		return SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->getInt();
   	};	
   	bool rename( const std::string strKeyOld, std::string strKeyNew ) {
   		std::ostringstream 	__osCmd;
   		__osCmd << __FUNCTION__ << " " << strKeyOld << " " << strKeyNew;
-  		return( SP_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->replyType() != ERROR ? true : false );
+  		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->replyType() != ERROR ? true : false );
   	};	
   //--
 	void auth( std::string strPwd ) {
 		std::string __strCmd = __FUNCTION__ + std::string( " " );
 		CCRedisReply __r( redisCommand( m_rh, std::string( __strCmd + strPwd ).c_str()  ) );
 	};
+	bool select( int dwIdx )
+	{
+		std::ostringstream 	__osCmd;
+  		__osCmd << __FUNCTION__ << " " << dwIdx;
+  		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __osCmd.str().c_str() ) ) )->replyType() != ERROR ? true : false );	
+	}
+	bool save()
+	{
+		std::string __strCmd = __FUNCTION__;
+  		return( SC_RedRpl( new CCRedisReply( redisCommand( m_rh, __strCmd.c_str() ) ) )->replyType() != ERROR ? true : false );	
+	}
 	void connect() {
-		SP_RedRpl __rep( new CCRedisReply );
 		if( redisConnect( &m_rh, m_strRedisHost.c_str(), m_dwRedisPort ) )
 			throw( std::runtime_error( "CCRedis-Exception: connect failed" ) );
 	};
@@ -387,7 +412,8 @@ public:
 	virtual ~CCRedis() {}
 
 };
-typedef boost::scoped_ptr<CCRedis::CCRedisReply>	Redis_SPRepl;
+typedef boost::scoped_ptr<CCRedis::CCRedisReply>	Redis_ScopedRepl;
+typedef boost::shared_ptr<CCRedis::CCRedisReply>	Redis_SHRepl;
 typedef CCRedis::T_vString							Redis_StrVec;
 typedef Redis_StrVec::iterator						Redis_itStr;
 typedef Redis_StrVec::const_iterator				Redis_citStr;
@@ -395,3 +421,6 @@ typedef CCRedis::T_mMap								Redis_mHash;
 typedef CCRedis::T_vTupRedis						Redis_vHash;
 
 #endif
+
+
+
